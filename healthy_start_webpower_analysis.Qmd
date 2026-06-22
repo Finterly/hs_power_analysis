@@ -1,0 +1,198 @@
+---
+title: "Healthy Start Power Analysis Using WebPower (R)"
+date: today
+format:
+  docx:
+    toc: true
+    number-sections: true
+    syntax-highlighting: github
+  pdf: 
+    documentclass: article
+  html:
+    toc: true
+    toc-depth: 5
+    html-math-method: katex
+    embed-resources: true
+    smooth-scroll: true
+editor: visual
+execute:
+  echo: true
+  include: true
+---
+
+```{r, include = FALSE}
+library(WebPower)
+```
+
+# WebPower
+
+https://webpower.psychstat.org/models/reg01/
+
+```{r, echo=FALSE}
+cat("version:", as.character(packageVersion("WebPower")))
+```
+
+```{r, include = FALSE}
+# Helper function
+custom_print <- function(res) {
+  print(res)
+  
+  # Extract effect size and convert
+  f2 <- res$f2
+  R2 <- f2 / (1 + f2)
+  
+  # Clean output
+  cat("\n")
+  cat(sprintf("Equivalent R2: %.6f\n", R2))
+  cat("\n")
+}
+
+```
+
+# AIM 1
+
+-   To identify whether DNA methylation (DNAme) at birth is associated with the life’s essential 8 (LE8) cardiovascular health score components in childhood. (n = 158)
+
+-   From the KEGG CVD, endocrine, and immune pathways we have 1729 genes of interest.
+
+-   1479 of these genes can be found in the autosomal 450k probes n = 32550.
+
+## Hypothesis 1.1
+
+DNAme sites associated with lower LE8 biological factors score (body mass index, blood lipids, glucose, and blood pressure) will be enriched in pathways related to inflammation and development of cardiometabolic disease.
+
+
+My Aim 1 is (Healthy Start Data):
+Aim 1: To identify whether DNA methylation (DNAme) at birth is associated with the life’s essential 8 (LE8) cardiovascular health score components in childhood. (n = 158)
+Hypothesis 1.1: DNAme sites associated with lower LE8 biological factors score (body mass index, blood lipids, glucose, and blood pressure) will be enriched in pathways related to inflammation and development of cardiometabolic disease.
+Hypothesis 1.2: DNAme at birth partially mediates the association between maternal prepregnancy BMI and poor cardiovascular health in childhood
+
+Plan for Hypothesis 1.1 For each CpG, we will fit a separate multivariable linear regression model such as:
+Y is the continuous cardiovascular score.
+X: DNAm ( M-value)
+covariates
+The model is repeated separately for every CpG (Illumina 450k)
+Use FDR adjusted p
+
+
+```{r}
+
+```
+
+## Hypothesis 1.2
+
+DNAme at birth partially mediates the association between maternal prepregnancy BMI and poor cardiovascular health in childhood
+
+```{r}
+
+```
+
+# AIM 2
+
+To determine whether infant adiposity is a risk factor of poor cardiovascular health in childhood.
+
+## Hypothesis 2.1 (BOTH 5 months?)
+
+We will examine whether percent fat mass at 5 months is associated with childhood Life’s Essential 8 (LE8) cardiovascular health score among participants with available follow-up data (n = 263). The primary outcome will be the continuous LE8 score, and the primary predictor will be percent fat mass at 5 months. We will use multivariable linear regression adjusting for 8 prespecified covariates. Secondary analyses will examine individual LE8 components as exploratory outcomes.
+
+Power Analysis: Power calculations were conducted for the primary multivariable linear regression analysis using n = 263 participants and α = 0.05. The analysis evaluated the incremental contribution of percent fat mass beyond 8 prespecified covariates. We will achieve 80% power to detect an effect corresponding to Cohen’s f² = 0.030, equivalent to a partial R² of 0.029, representing a small effect size according to Cohen’s conventions.
+
+From WebPower (model percent fat mass, n = 263, alpha = 0.05, power = 80%):
+```{r}
+alpha = 0.05
+n_covars = 8
+
+res <- wp.regression(
+  n = 263,      
+  p1 = n_covars + 1,  # percent fat mass + covariates
+  p2 = n_covars,
+  f2 = NULL,
+  alpha = alpha,
+  power = 0.80
+)
+
+custom_print(res)
+```
+
+## Hypothesis 2.2
+
+We will examine whether rapid weight gain between 0 and 5 months is associated with childhood Life’s Essential 8 (LE8) cardiovascular health score among participants with available follow-up data (n = 273). The primary outcome will be the continuous LE8 score, and the primary predictor will be rapid weight gain. We will use multivariable linear regression adjusting for 8 prespecified covariates. Secondary analyses will examine individual LE8 components as exploratory outcomes.
+
+Power Analysis: Power calculations were conducted for the primary multivariable linear regression analysis using n = 263 participants and α = 0.05. The analysis evaluated the incremental contribution of percent fat mass beyond 8 prespecified covariates. We will achieve 80% power to detect an effect corresponding to Cohen’s f² = 0.029, equivalent to a partial R² of 0.028, representing a small effect size according to Cohen’s conventions.
+
+From WebPower (model rapid weight gain, n = 273, alpha = 0.05, power = 80%):
+```{r}
+alpha = 0.05
+n_covars = 8
+
+res <- wp.regression(
+  n = 273,      
+  p1 = n_covars + 1,  # rapid weight gain + covariates
+  p2 = n_covars,
+  f2 = NULL,
+  alpha = alpha,
+  power = 0.80
+)
+
+custom_print(res)
+```
+
+
+
+
+# AIM 3
+
+To determine the association between LE8 cardiovascular health score and markers of endothelial dysfunction and inflammation among children aged 5 years.
+
+## Hypothesis 3.1
+
+We will examine whether childhood Life’s Essential 8 (LE8) cardiovascular health score is associated with circulating markers of endothelial dysfunction among participants with available data (n = 347). The outcomes will be circulating levels of ICAM, VCAM, E-selectin, and P-selectin, which will be log-transformed if needed. The primary predictor will be continuous LE8 score. Separate multivariable linear regression models will be fit for each endothelial dysfunction marker, adjusting for 8 prespecified covariates.
+
+Power calculations were conducted for multivariable linear regression using n = 347 participants and 8 prespecified covariates. Because four endothelial dysfunction markers will be examined, we used a Bonferroni-adjusted significance level of α = 0.05/4. This likely provides a conservative estimate relative to the planned FDR-adjusted analyses.
+
+We will achieve 80% power to detect an incremental effect of LE8 corresponding to Cohen’s f² = 0.032, equivalent to a partial R² of 0.031, representing a small effect size according to Cohen’s conventions.
+
+From WebPower (model markers of endothelial dysfunction, n = 347, alpha = 0.05/4, power = 80%):
+```{r}
+alpha_bonf <- 0.05 / 4
+n_covars = 8
+
+res <- wp.regression(
+  n = 347,      
+  p1 = n_covars + 1,  # marker + covariates
+  p2 = n_covars,
+  f2 = NULL,
+  alpha = alpha_bonf,
+  power = 0.80
+)
+
+custom_print(res)
+```
+
+## Hypothesis 3.2
+
+We will examine whether childhood Life’s Essential 8 (LE8) cardiovascular health score is associated with levels of inflammatory markers among participants with available data (n = 222). The outcomes will be CRP and IL6, which will be log-transformed if needed. The primary predictor will be continuous LE8 score. Separate multivariable linear regression models will be fit for each inflammatory marker, adjusting for 8 prespecified covariates.
+
+Power calculations were conducted for multivariable linear regression using n = 222 participants and 8 prespecified covariates. Because two inflammatory markers will be examined, we used a Bonferroni-adjusted significance level of α = 0.05/2. This likely provides a conservative estimate relative to the planned FDR-adjusted analyses.
+
+We will achieve 80% power to detect an incremental effect of LE8 corresponding to Cohen’s f² = 0.043, equivalent to a partial R² of 0.042, representing a small effect size according to Cohen’s conventions.
+
+From WebPower (model markers of endothelial dysfunction, n = 222, alpha = 0.05/2, power = 80%):
+```{r}
+alpha_bonf <- 0.05 / 2
+n_covars = 8
+
+res <- wp.regression(
+  n = 222,      
+  p1 = n_covars + 1,  # marker + covariates
+  p2 = n_covars,
+  f2 = NULL,
+  alpha = alpha_bonf,
+  power = 0.80
+)
+
+custom_print(res)
+```
+```{r, include = FALSE}
+sessionInfo()
+```
