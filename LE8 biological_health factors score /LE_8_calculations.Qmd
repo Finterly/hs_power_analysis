@@ -1,0 +1,282 @@
+---
+title: "LE8 Calculations"
+format:
+  html:
+    toc: true
+    toc-depth: 5
+    html-math-method: katex
+    embed-resources: true
+    smooth-scroll: true
+editor: visual
+execute:
+  echo: true
+  include: true
+---
+
+# Set up
+
+```{r set-up}
+library(rio)
+library(tidyverse)
+```
+
+# Wide Data
+
+```{r}
+wide_df <- import("~/Documents/GitHub/hs_power_analysis/LE8 biological_health factors score /df_merged_HS_forAHAgrant.csv")
+
+subset_df <- wide_df %>%
+  dplyr::mutate(
+    age_months = ageyrs_HSIIVisit * 12,
+    ResultNonHDLCholesterol = ResultCholesterol - ResultHDL,
+    height_m_HSIIVisit  = sqrt(wtkg_HSIIVisit / bmi_HSIIVisit),
+    height_cm_HSIIVisit = height_m_HSIIVisit * 100,
+    sex = factor(
+      case_when(
+        infant_sex == 1 ~ "female",
+        infant_sex == 2 ~ "male",
+        TRUE ~ NA_character_
+      ),
+      levels = c("female", "male")
+    ),
+  ) %>%
+  dplyr::select(
+    pid,
+    childID,
+    sex,
+    bmi_HSIIVisit,
+    age_months,
+    ageyrs_HSIIVisit,
+    wtkg_HSIIVisit,
+    height_cm_HSIIVisit,
+    methylation_ind_HSIIVisit,
+    ResultGlucose,
+    ResultCholesterol,
+    ResultHDL,
+    ResultNonHDLCholesterol,
+    X_hs2_pdf_bpsys,
+    X_hs2_pdf_bpdia
+  )  
+
+score_df <- subset_df
+```
+
+# BMI Score
+TODO: NA values for very underweight
+
+-   5th to \<85th percentile = `100`
+
+-   85th to \<95th percentile = `70`
+
+-   ≥95th percentile = `30`
+
+-   120% of the 95th percentile to \<140% of the 95th percentile = `15`
+
+-   ≥140% of the 95th percentile = `0`
+
+```{r}
+library(cdcanthro)
+
+summary(score_df$bmi_HSIIVisit)
+
+bmi_df <- score_df %>%
+  filter(
+    !is.na(bmi_HSIIVisit)
+  )
+
+bmi_results <- cdcanthro(
+  data = bmi_df,
+  age = age_months,
+  wt = wtkg_HSIIVisit,
+  ht = height_cm_HSIIVisit,
+  bmi = bmi_HSIIVisit
+) 
+
+see <- bmi_score %>%
+  select(pid, bmi_HSIIVisit, bmip, bmip95, p50, p95, BMI_Score)
+
+bmi_score <- bmi_df %>%
+  left_join(bmi_results %>% select(pid, bmip, p50, p95, bmip95), by = "pid") %>%
+  mutate(
+    BMI_Score = case_when(
+      bmip >= 5  & bmip < 85 ~ 100,
+      bmip >= 85 & bmip < 95 ~ 70,
+      bmip >= 95 & bmip95 < 120 ~ 30,
+      bmip95 >= 120 & bmip95 < 140 ~ 15,
+      bmip95 >= 140 ~ 0,
+      TRUE ~ NA_real_
+    )
+  )
+
+```
+
+# Fasting glucose score
+TODO: There is one individual with > 125 mg/dL
+
+-   Non-diabetic with values \<100 mg/dL = `100`
+
+-   Non-diabetic with values 100 to \<125 mg/dL = `60`
+
+```{r}
+summary(score_df$ResultGlucose)
+
+score_df <- score_df %>%
+  mutate(
+    Fasting_Glucose_Score = case_when(
+      ResultGlucose < 100 ~ 100,
+      ResultGlucose >= 100 & ResultGlucose < 125 ~ 60,
+      ResultGlucose >= 125 ~ 0,
+      TRUE ~ NA_real_
+    ),
+    Fasting_Glucose_Flag = case_when(
+      ResultGlucose >= 125 ~ "ERROR: glucose >=125",
+      TRUE ~ NA_character_
+    )
+  )
+
+```
+
+# Non-HDL cholesterol score
+
+-   \<100 mg/dL = `100`
+
+-   100 to \<120 mg/dL = `60`
+
+-   120 to \<145 mg/dL = `40`
+
+-   145 to \<190 mg/dL = `20`
+
+-   ≥190 mg/dL = `0`
+
+```{r}
+summary(score_df$ResultNonHDLCholesterol)
+
+score_df <- score_df %>%
+  mutate(
+    NonHDL_Cholesterol_Score = case_when(
+      ResultNonHDLCholesterol < 100 ~ 100,
+      ResultNonHDLCholesterol >= 100 & ResultNonHDLCholesterol < 120 ~ 60,
+      ResultNonHDLCholesterol >= 120 & ResultNonHDLCholesterol < 145 ~ 40,
+      ResultNonHDLCholesterol >= 145 & ResultNonHDLCholesterol < 190 ~ 20,
+      ResultNonHDLCholesterol >= 190 ~ 0,
+      TRUE ~ NA_real_
+    )
+  )
+```
+
+# SBP (bpdia) and DBP (bpdia) score
+
+-   \<90th percentile of age, sex, and height = `100`
+
+-   SBP and DBP 90th to \<95th percentile = `75`
+
+-   95th percentile to 95th percentile + 12 mmHg = `50`
+
+-   95th percentile + 12 mmHg to \<95th percentile + 30 mmHg = `25`
+
+-   ≥95th percentile + 30 mmHg = `0`
+
+```{r}
+library(pedbp)
+
+pedbp_df <- score_df %>%
+  mutate(
+    male = case_when(
+      sex == "male" ~ 1,
+      sex == "female" ~ 0,
+      TRUE ~ NA_real_
+    )
+  ) %>%
+  dplyr::select(pid,
+                childID,
+                age_months,
+                male,
+                height_cm = height_cm_HSIIVisit,
+                X_hs2_pdf_bpsys,
+                X_hs2_pdf_bpdia) %>%
+  filter(
+    !is.na(X_hs2_pdf_bpsys),
+    !is.na(X_hs2_pdf_bpdia),
+    !is.na(male),
+    !is.na(age_months),
+    !is.na(height_cm)
+  )
+
+summary(pedbp_df$X_hs2_pdf_bpsys)  # SBP / systolic
+summary(pedbp_df$X_hs2_pdf_bpdia)  # DBP / diastolic
+summary(pedbp_df$age_months)  # DBP / diastolic
+summary(pedbp_df$height_cm)  # DBP / diastolic
+
+
+# bp_pct_results <- p_bp(
+#   q_sbp = pedbp_df$X_hs2_pdf_bpsys,
+#   q_dbp = pedbp_df$X_hs2_pdf_bpdia,
+#   male   = pedbp_df$male,
+#   age    = pedbp_df$age_months,
+#   height = pedbp_df$height_cm,
+#   source = "martin2022"
+# )
+
+# score_df <- pedbp_df %>%
+#   mutate(
+#     sbp_p = bp_pct_results$sbp_p,
+#     dbp_p = bp_pct_results$dbp_p,
+#     SBP_percentile = sbp_p * 100,
+#     DBP_percentile = dbp_p * 100
+#   )
+
+
+bp_90 <- q_bp(
+  p_sbp = 0.90,
+  p_dbp = 0.90,
+  male   = pedbp_df$male,
+  age    = pedbp_df$age_months,
+  height = pedbp_df$height_cm,
+  source = "martin2022"
+)
+
+bp_95 <- q_bp(
+  p_sbp = 0.95,
+  p_dbp = 0.95,
+  male   = pedbp_df$male,
+  age    = pedbp_df$age_months,
+  height = pedbp_df$height_cm,
+  source = "martin2022"
+)
+
+score_df <- pedbp_df %>%
+  mutate(
+    SBP_90 = bp_90$sbp,
+    DBP_90 = bp_90$dbp,
+    SBP_95 = bp_95$sbp,
+    DBP_95 = bp_95$dbp
+  )
+
+score_df <- score_df %>%
+  mutate(
+    Blood_Pressure_Score = case_when(
+      is.na(X_hs2_pdf_bpsys) | is.na(X_hs2_pdf_bpdia) |
+        is.na(SBP_90) | is.na(DBP_90) |
+        is.na(SBP_95) | is.na(DBP_95) ~ NA_real_,
+      
+      X_hs2_pdf_bpsys >= SBP_95 + 30 |
+        X_hs2_pdf_bpdia >= DBP_95 + 30 ~ 0,
+      
+      X_hs2_pdf_bpsys >= SBP_95 + 12 |
+        X_hs2_pdf_bpdia >= DBP_95 + 12 ~ 25,
+      
+      X_hs2_pdf_bpsys >= SBP_95 |
+        X_hs2_pdf_bpdia >= DBP_95 ~ 50,
+      
+      X_hs2_pdf_bpsys >= SBP_90 |
+        X_hs2_pdf_bpdia >= DBP_90 ~ 75,
+      
+      X_hs2_pdf_bpsys < SBP_90 &
+        X_hs2_pdf_bpdia < DBP_90 ~ 100,
+      
+      TRUE ~ NA_real_
+    )
+  )
+
+
+```

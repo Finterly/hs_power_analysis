@@ -29,18 +29,18 @@ library(GenomicRanges)
 # Gene Lists
 
 ```{r}
-kegg_immune <- import("~/Desktop/Evaniya/healthy_start_grant_power_analysis/gene_lists/human_KEGG_immune_pathways_unique_gene_list.csv")
+kegg_immune <- import("~/Documents/GitHub/hs_power_analysis/gene_lists/human_KEGG_immune_pathways_unique_gene_list.csv")
 dim(kegg_immune) #1236    6
 
-kegg_cvd <- import("~/Desktop/Evaniya/healthy_start_grant_power_analysis/gene_lists/KEGG_CVD_unique_gene_symbols.csv")
+kegg_cvd <- import("~/Documents/GitHub/hs_power_analysis/gene_lists/KEGG_CVD_unique_gene_symbols.csv")
 dim(kegg_cvd) # 607   1
 
-# kegg_cvd2 <- import("~/Desktop/Evaniya/healthy_start_grant_power_analysis/gene_lists/KEGG_CVD_unique_genes.csv")
+# kegg_cvd2 <- import("~/Documents/GitHub/hs_power_analysis/gene_lists/KEGG_CVD_unique_genes.csv")
 # identical(kegg_cvd$gene_symbol, kegg_cvd2$gene_symbol)
 
-kegg_endocrine <- import("~/Desktop/Evaniya/healthy_start_grant_power_analysis/gene_lists/KEGG_endocrine_metabolic_unique_gene_symbols.csv")
+kegg_endocrine <- import("~/Documents/GitHub/hs_power_analysis/gene_lists/KEGG_endocrine_metabolic_unique_gene_symbols.csv")
 
-# kegg_endocrine2 <- import("~/Desktop/Evaniya/healthy_start_grant_power_analysis/gene_lists/KEGG_endocrine_metabolic_unique_genes.csv")
+# kegg_endocrine2 <- import("~/Documents/GitHub/hs_power_analysis/gene_lists/KEGG_endocrine_metabolic_unique_genes.csv")
 # identical(kegg_endocrine$gene_symbol, kegg_endocrine2$gene_symbol)
 
 all_kegg_ids <- c(kegg_immune$gene_symbol, kegg_cvd$gene_symbol, kegg_endocrine$gene_symbol)
@@ -48,6 +48,15 @@ length(all_kegg_ids) #2309
 
 unique_kegg_ids <- unique(all_kegg_ids)
 length(unique_kegg_ids) #1729
+
+# unique_kegg_ids <- unique(kegg_cvd$gene_symbol)
+# length(unique_kegg_ids) #607
+
+# ath_df <- import("~/Documents/GitHub/hs_power_analysis/gene_lists/hsa05417_Lipid_and_atherosclerosis_genes.csv")
+# unique_kegg_ids <- unique(ath_df$gene_symbol)
+# length(unique_kegg_ids) #216
+
+unique_kegg_ids <- c("ABCG1", "CAMK2B", "NFKB1", "ABCA1", "LDLR")
 ```
 
 # Illumina EPIC 450k
@@ -69,7 +78,6 @@ dim(anno_450k_subset_long) # 526,742      4
 # Common Genes
 
 Of the 1729 genes, we have 1525 in the 450k array
-
 ```{r}
 anno_genes <- anno_450k_subset_long %>%
   filter(!is.na(UCSC_RefGene_Name), UCSC_RefGene_Name != "") %>%
@@ -91,7 +99,7 @@ ggVennDiagram(venn_list)
 # Probes List
 
 32550 distinct probes
-
+12378 
 ```{r}
 anno_450k_subset_long_filt <- anno_450k_subset_long %>%
   filter(UCSC_RefGene_Name %in% unique_kegg_ids)  
