@@ -66,8 +66,9 @@ CpG sites associated with LE8 biological factors score will be annotated to near
 Power calculations were conducted for the CpG-specific multivariable linear regression models using a conservative Bonferroni-adjusted significance level of α = 0.05/32,550 to account for testing across candidate CpG sites. Each model evaluated the incremental contribution of DNA methylation M-value at a given CpG beyond 8 prespecified covariates. At 80% power, this analysis can detect an effect corresponding to Cohen’s f² = 0.219, equivalent to a partial R² of 0.179. This corresponds to a medium-to-large effect size according to Cohen’s convention. Because the planned primary EWAS inference will use FDR adjustment, this Bonferroni-based calculation should be interpreted as a conservative estimate of detectable effect size.
 
 From WebPower (model DNAme, n = 158, alpha = 0.05/n_cpgs, power = 80%):
+
 ```{r}
-n_cpgs <-  12378 #3996 (atherosclerosis) # 12378 (cvd only) #32550 #151 (just 5 genes)
+n_cpgs <-  1 #12378 #3996 (atherosclerosis) # 12378 (cvd only) #32550 #151 (just 5 genes)
 alpha_bonf <- 0.05 / n_cpgs
 n_covars <- 13
 
@@ -82,7 +83,8 @@ res <- wp.regression(
 
 custom_print(res)
 ```
-## Hypothesis 1.2 ???? 
+
+## Hypothesis 1.2 ????
 
 DNAme at birth partially mediates the association between maternal prepregnancy BMI and poor cardiovascular health in childhood
 

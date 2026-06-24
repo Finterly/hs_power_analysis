@@ -18,9 +18,24 @@ execute:
 ```{r set-up}
 library(rio)
 library(tidyverse)
+library(ggpubr)
+source("~/Documents/GitHub/r_helper_scripts/correlation_functions.R")
 ```
 
 # Wide Data
+
+## PIDs
+```{r}
+pids_le8_cb <- read.csv("~/Documents/GitHub/hs_power_analysis/PIDS/p0010_ShakyaEvaniya_LE8_CB.csv")
+dim(pids_le8_cb)
+
+pids_le8_pfm <- read.csv("~/Documents/GitHub/hs_power_analysis/PIDS/p0010_ShakyaEvaniya_LE8_PFM.csv")
+
+pids_le8_crp_il6 <-read.csv("~/Documents/GitHub/hs_power_analysis/PIDS/p0010_ShakyaEvaniya_LE8_CRP_IL6.csv")
+
+all_pids <- unique(c(pids_le8_cb$PID, pids_le8_pfm$PID, pids_le8_crp_il6$PID))
+length(all_pids)
+```
 
 ```{r}
 wide_df <- import("~/Documents/GitHub/hs_power_analysis/LE8 biological_health factors score /df_merged_HS_forAHAgrant.csv")
@@ -49,19 +64,24 @@ subset_df <- wide_df %>%
     ageyrs_HSIIVisit,
     wtkg_HSIIVisit,
     height_cm_HSIIVisit,
-    methylation_ind_HSIIVisit,
+    # methylation_ind_HSIIVisit,
     ResultGlucose,
     ResultCholesterol,
     ResultHDL,
     ResultNonHDLCholesterol,
     X_hs2_pdf_bpsys,
-    X_hs2_pdf_bpdia
-  )  
+    X_hs2_pdf_bpdia,
+    ipv4_pp_fm_pct,
+    `IL_6_hs___pg_mL`,
+    `CRP_hs__mg_L`
+  )  %>%
+  filter(pid %in% all_pids)
 
 score_df <- subset_df
 ```
 
-# BMI Score
+## BMI Score
+
 TODO: NA values for very underweight
 
 -   5th to \<85th percentile = `100`
@@ -92,12 +112,9 @@ bmi_results <- cdcanthro(
   bmi = bmi_HSIIVisit
 ) 
 
-see <- bmi_score %>%
-  select(pid, bmi_HSIIVisit, bmip, bmip95, p50, p95, BMI_Score)
-
 bmi_score <- bmi_df %>%
-  left_join(bmi_results %>% select(pid, bmip, p50, p95, bmip95), by = "pid") %>%
-  mutate(
+  dplyr::left_join(bmi_results %>% select(pid, bmip, p50, p95, bmip95), by = "pid") %>%
+  dplyr::mutate(
     BMI_Score = case_when(
       bmip >= 5  & bmip < 85 ~ 100,
       bmip >= 85 & bmip < 95 ~ 70,
@@ -106,12 +123,16 @@ bmi_score <- bmi_df %>%
       bmip95 >= 140 ~ 0,
       TRUE ~ NA_real_
     )
-  )
+  ) 
+
+# see <- bmi_score %>%
+#   select(pid, bmi_HSIIVisit, bmip, bmip95, p50, p95, BMI_Score)
 
 ```
 
-# Fasting glucose score
-TODO: There is one individual with > 125 mg/dL
+## Fasting glucose score
+
+TODO: There is one individual with \> 125 mg/dL
 
 -   Non-diabetic with values \<100 mg/dL = `100`
 
@@ -120,7 +141,7 @@ TODO: There is one individual with > 125 mg/dL
 ```{r}
 summary(score_df$ResultGlucose)
 
-score_df <- score_df %>%
+gluc_score <- score_df %>%
   mutate(
     Fasting_Glucose_Score = case_when(
       ResultGlucose < 100 ~ 100,
@@ -134,9 +155,10 @@ score_df <- score_df %>%
     )
   )
 
+
 ```
 
-# Non-HDL cholesterol score
+## Non-HDL cholesterol score
 
 -   \<100 mg/dL = `100`
 
@@ -151,7 +173,7 @@ score_df <- score_df %>%
 ```{r}
 summary(score_df$ResultNonHDLCholesterol)
 
-score_df <- score_df %>%
+nonhdl_score <- score_df %>%
   mutate(
     NonHDL_Cholesterol_Score = case_when(
       ResultNonHDLCholesterol < 100 ~ 100,
@@ -164,7 +186,7 @@ score_df <- score_df %>%
   )
 ```
 
-# SBP (bpdia) and DBP (bpdia) score
+## SBP (bpdia) and DBP (bpdia) score
 
 -   \<90th percentile of age, sex, and height = `100`
 
@@ -252,7 +274,7 @@ score_df <- pedbp_df %>%
     DBP_95 = bp_95$dbp
   )
 
-score_df <- score_df %>%
+bp_score <- score_df %>%
   mutate(
     Blood_Pressure_Score = case_when(
       is.na(X_hs2_pdf_bpsys) | is.na(X_hs2_pdf_bpdia) |
@@ -280,3 +302,184 @@ score_df <- score_df %>%
 
 
 ```
+
+# Table for LE8 Biological
+1.1, 2.1, 3.2 
+Mean and SD
+p-value (see if different) - maybe later 
+
+## Join data
+```{r}
+bmi_score1 <- bmi_score %>% select(pid, BMI_Score)
+
+gluc_score1  <- gluc_score %>% select(pid, Fasting_Glucose_Score)
+
+nonhdl_score1 <- nonhdl_score  %>% select(pid, NonHDL_Cholesterol_Score)
+
+bp_score1 <- bp_score  %>% select(pid, Blood_Pressure_Score)
+
+score_df_final <- score_df %>%
+  left_join(bmi_score1, by = "pid") %>%
+  left_join(gluc_score1, by = "pid") %>%
+  left_join(nonhdl_score1, by = "pid") %>%
+  left_join(bp_score1, by = "pid") 
+
+```
+
+## Subsets 
+
+```{r}
+pids_le8_cb_score <- score_df_final %>%
+  filter(pid %in% pids_le8_cb$PID) %>%
+  mutate(hypothesis = "Hypothesis 1.1") %>%
+  mutate(
+    LE_biological_score = (
+      BMI_Score + Fasting_Glucose_Score + NonHDL_Cholesterol_Score + Blood_Pressure_Score
+    ) / 4
+  ) %>%
+  filter(!is.na(LE_biological_score))
+dim(pids_le8_cb_score) #147  17
+
+pids_le8_pfm_score <- score_df_final %>%
+  filter(pid %in% pids_le8_pfm$PID) %>%
+  mutate(hypothesis = "Hypothesis 2.1") %>%
+  mutate(
+    LE_biological_score = (
+      BMI_Score + Fasting_Glucose_Score + NonHDL_Cholesterol_Score + Blood_Pressure_Score
+    ) / 4
+  )%>%
+  filter(!is.na(LE_biological_score))
+dim(pids_le8_pfm_score) #250  17
+
+pids_le8_crp_il6_score <- score_df_final %>%
+  filter(pid %in% pids_le8_crp_il6$PID) %>%
+  mutate(hypothesis = "Hypothesis 3.2") %>%
+  mutate(
+    LE_biological_score = (
+      BMI_Score + Fasting_Glucose_Score + NonHDL_Cholesterol_Score + Blood_Pressure_Score
+    ) / 4
+  )%>%
+  filter(!is.na(LE_biological_score))
+dim(pids_le8_crp_il6_score) #303  17
+
+full_table_le8 <- rbind(pids_le8_cb_score,
+                        pids_le8_pfm_score,
+                        pids_le8_crp_il6_score)
+```
+
+## Table 1
+```{r}
+library(gtsummary)
+library(gt)
+
+score_vars <- c(
+  "LE_biological_score",
+  "BMI_Score",
+  "Fasting_Glucose_Score",
+  "NonHDL_Cholesterol_Score",
+  "Blood_Pressure_Score"
+)
+
+table1 <- full_table_le8 %>%
+  select(hypothesis, all_of(score_vars)) %>%
+  mutate(across(all_of(score_vars), as.numeric)) %>%
+  tbl_summary(
+    by = hypothesis,
+    type = all_of(score_vars) ~ "continuous",
+    statistic = all_of(score_vars) ~ "{mean} ({sd})",
+    digits = all_of(score_vars) ~ 1,
+    missing = "no",
+    label = list(
+      LE_biological_score ~ "LE8 Biological",
+      BMI_Score ~ "BMI",
+      Fasting_Glucose_Score ~ "Fasting Glucose",
+      NonHDL_Cholesterol_Score ~ "Non-HDL Cholesterol",
+      Blood_Pressure_Score ~ "Blood Pressure"
+    )
+  ) %>%
+  add_p(test = all_of(score_vars) ~ "aov") %>%
+  modify_header(label ~ "**Score**", p.value ~ "**p-value**") %>%
+  modify_fmt_fun(p.value ~ function(x)
+    style_pvalue(x, digits = 3)) %>%
+  bold_labels() %>%
+  as_gt()
+  
+gtsave(table1, "table1_LE8.pdf")
+
+table1
+
+
+```
+
+
+# Hypotheses 
+
+
+
+
+## 1.1 Biological LE8 n = 158 - lowest priority 
+(n = 158)
+Spearman - cpgs ... 12k ones ... adjustment fdr - top 50??? try LE8 or the 4 components separately 
+```{r}
+
+
+```
+
+## 1.3 Biological LE8 vs. EAA??? n = 147
+Knight & Bohlin, LE8 and components - correlation plots or heat plot? 
+```{r}
+dim(pids_le8_cb_score)
+corr_matrix_plot <- function(df, group_var, method = "spearman", start_index)
+
+```
+
+
+
+## 2.1 Fat Mass vs. Biological LE8 n = 250
+We will examine whether percent fat mass at 5 months is associated with childhood Life’s Essential 8 (LE8) cardiovascular health score among participants with available follow-up data (n = 263).
+
+Correlation
+`ipv4_pp_fm_pct`
+```{r}
+pids_le8_pfm_score
+dim(pids_le8_pfm_score) #250  23
+
+cor.test()
+
+cor1 <- cor.test(
+  pids_le8_pfm_score$ipv4_pp_fm_pct,
+  pids_le8_pfm_score$LE_biological_score,
+  alternative = "two.sided",
+  method = "spearman",
+  conf.level = 0.95
+)
+
+plot_correlation("",pids_le8_pfm_score,"ipv4_pp_fm_pct","LE_biological_score", "ipv4_pp_fm_pct","LE_biological_score", method = "spearman", show_ci = FALSE)
+
+
+wide_df$ipv4_pp_fm_pct
+
+```
+
+
+## 3.2 CRP/IL6 vs. Biological LE8 n = 303
+We will examine whether childhood Life’s Essential 8 (LE8) cardiovascular health score is associated with levels of inflammatory markers among participants with available data (n = 322). The outcomes will be CRP and IL6, which will be log-transformed if needed
+
+Correlation 
+- Log transform CRP and IL6
+`IL_6_hs___pg_mL`                 `CRP_hs__mg_L`
+
+```{r}
+pids_le8_crp_il6_score <- pids_le8_crp_il6_score %>%
+  mutate(
+    CRP_hs__mg_L_log = log(CRP_hs__mg_L),
+    IL_6_hs___pg_mL_log = log(IL_6_hs___pg_mL)
+  )
+dim(pids_le8_crp_il6_score)
+
+plot_correlation("",pids_le8_crp_il6_score,"CRP_hs__mg_L","LE_biological_score", "CRP_hs__mg_L","LE_biological_score", method = "spearman", show_ci = FALSE)
+
+plot_correlation("",pids_le8_crp_il6_score,"IL_6_hs___pg_mL","LE_biological_score", "IL_6_hs___pg_mL","LE_biological_score", method = "spearman", show_ci = FALSE)
+```
+
+
