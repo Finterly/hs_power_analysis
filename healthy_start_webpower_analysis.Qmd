@@ -68,7 +68,7 @@ Power calculations were conducted for the CpG-specific multivariable linear regr
 From WebPower (model DNAme, n = 158, alpha = 0.05/n_cpgs, power = 80%):
 
 ```{r}
-n_cpgs <-  1 #12378 #3996 (atherosclerosis) # 12378 (cvd only) #32550 #151 (just 5 genes)
+n_cpgs <-  3728 #12378 #3996 (atherosclerosis) # 12378 (cvd only) #32550 #151 (just 5 genes)
 alpha_bonf <- 0.05 / n_cpgs
 n_covars <- 13
 

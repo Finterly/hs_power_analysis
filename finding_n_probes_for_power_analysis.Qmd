@@ -1,0 +1,150 @@
+---
+title: "Finding the Number of CPGs"
+format:
+  html:
+    toc: true
+    toc-depth: 5
+    html-math-method: katex
+    embed-resources: true
+    smooth-scroll: true
+editor: visual
+execute:
+  echo: true
+  include: true
+---
+
+# Set up
+
+```{r set-up}
+library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
+library(rio)
+library(tidyverse)
+library(ggVennDiagram)
+library(gridExtra)
+library(RColorBrewer)
+library(janitor)
+library(GenomicRanges)
+```
+
+# Gene Lists
+
+Here we read in pathway gene lists and see how many genes are in each pathway.
+
+```{r}
+kegg_immune <- import("data/pathway_gene_lists/human_KEGG_immune_pathways_unique_gene_list.csv")
+cat("KEGG immune pathway has ", nrow(kegg_immune), "genes\n")
+
+kegg_cvd <- import("data/pathway_gene_lists/KEGG_CVD_unique_gene_symbols.csv")
+cat("KEGG CVD pathway has ", nrow(kegg_cvd), "genes\n")
+
+kegg_endocrine <- import("data/pathway_gene_lists/KEGG_endocrine_metabolic_unique_gene_symbols.csv")
+cat("KEGG endocrine pathway has ", nrow(kegg_endocrine), "genes\n")
+
+# kegg_immune_cvd_endocrine_genes<- c(kegg_immune$gene_symbol, kegg_cvd$gene_symbol, kegg_endocrine$gene_symbol)
+
+atherosclerosis_df <- import("data/pathway_gene_lists/hsa05417_Lipid_and_atherosclerosis_genes.csv")
+
+# We decided to look at just atherosclerosis genes
+unique_kegg_ids <- unique(atherosclerosis_df$gene_symbol)
+cat("atherosclerosis pathway has ", length(unique_kegg_ids), "genes\n")
+```
+
+# Illumina EPIC 450k
+
+Here we read the EPIC 450k manifest file.
+
+```{r}
+anno_450k <- getAnnotation(IlluminaHumanMethylation450kanno.ilmn12.hg19)
+anno_450k_df <- as.data.frame(anno_450k)
+
+anno_450k_subset <- anno_450k_df %>%
+  select(chr, pos, Name, UCSC_RefGene_Name)
+cat("450k Array has ", nrow(anno_450k_subset), " rows\n") #485512      4
+
+anno_450k_subset_long <- anno_450k_subset %>%
+    separate_rows(UCSC_RefGene_Name, sep = ";") %>%
+    distinct()
+cat("450k Array has ", nrow(anno_450k_subset_long), " rows of genes") #485512      4
+```
+
+# Common Genes in 450k Manifest
+
+Of the 216 genes in our pathway, we have 202 in the 450k array manifest
+
+```{r}
+anno_genes <- anno_450k_subset_long %>%
+  filter(!is.na(UCSC_RefGene_Name), UCSC_RefGene_Name != "") %>%
+  pull(UCSC_RefGene_Name) %>%
+  unique()
+
+kegg_genes <- unique_kegg_ids %>%
+  na.omit() %>%
+  unique()
+
+venn_list <- list(
+  `450k` = unique(anno_genes),
+  `kegg` = unique(kegg_genes)
+)
+
+ggVennDiagram(venn_list)
+```
+
+# Number Probes and Genes
+
+```{r}
+anno_450k_subset_long_filt <- anno_450k_subset_long %>%
+  filter(UCSC_RefGene_Name %in% unique_kegg_ids)  
+cat("We filter 450k table for genes in our pathway of interest, ", nrow(anno_450k_subset_long_filt), "rows\n")
+# unique(anno_450k_subset_long_filt$chr) 
+
+anno_450k_subset_long_filt_xy <- anno_450k_subset_long_filt%>%
+  filter(!chr %in% c("chrY", "chrX"))
+cat("We filter 450k table further, removing probes on chromosome X and Y, ", nrow(anno_450k_subset_long_filt_xy), "rows\n")
+# unique(anno_450k_subset_long_filt_xy$chr) # chrX/Y removed
+
+cat("So for our genes of interest in 450k manifest table, we have ", n_distinct(anno_450k_subset_long_filt_xy$Name), " distinct probes after filtering out chr XY probes\n")
+cat("So for our genes of interest in 450k manifest table, we have ", n_distinct(anno_450k_subset_long_filt_xy$UCSC_RefGene_Name), " distinct genes after filtering out chr XY probes\n")
+```
+
+# Our Data
+
+Loading M matrix data for Healthy Start
+
+```{r}
+hs_data_Ms <- import("~/Documents/GitHub/healthy_start/data/Borengasser_170160-110104/CB_m_norm_batch_plate.csv")
+
+cat("We have ", length(unique(anno_450k_subset_long_filt_xy$Name)), " probes for the genes of interest in the 450k manifest\n" )
+cat("Of those ", length(intersect(names(hs_data_Ms), anno_450k_subset_long_filt_xy$Name)), " probes for genes of interest are also found in our healthy start data\n" )
+
+# Here we filter out health start data for the probes linked to genes of interest
+healthy_start_Ms_filtered <- hs_data_Ms %>%
+  select(pid, any_of(anno_450k_subset_long_filt_xy$Name))
+
+cat("Dimension of our healthy start data filtered to probes for genes of interest ", dim(healthy_start_Ms_filtered))
+saveRDS(healthy_start_Ms_filtered, "healthy_start_Ms_filtered_to_probes_for_genes_of_interest.rds")
+
+
+```
+
+# Common Genes in Data
+
+Of the 216 genes, we have 194 in our healthy start data.
+
+```{r}
+anno_genes2 <- anno_450k_subset_long %>%
+  filter(!is.na(UCSC_RefGene_Name), UCSC_RefGene_Name != "") %>%
+  filter(Name %in% names(healthy_start_Ms_filtered)) %>%
+  pull(UCSC_RefGene_Name) %>%
+  unique()
+
+kegg_genes <- unique_kegg_ids %>%
+  na.omit() %>%
+  unique()
+
+venn_list <- list(
+  `our_genes` = anno_genes2,
+  `kegg` = kegg_genes
+)
+
+ggVennDiagram(venn_list)
+```

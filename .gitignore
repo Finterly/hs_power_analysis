@@ -1,5 +1,6 @@
-/gene_lists
 .DS_Store
-/LE8*/*.csv
-/LE8*/*.docx
-/PIDS
+/data
+*.html
+*.docx
+*.rds
+*.pdf
